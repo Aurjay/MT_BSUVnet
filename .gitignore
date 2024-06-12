@@ -1,3 +1,7 @@
 trained_models
 hrnet_v2
 *.mp4
+Lib
+examples
+bsuvenv
+README.md

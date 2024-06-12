@@ -74,7 +74,7 @@ def getFPM(im, seg_network, fpm=True):
         seg_map = seg_network({'img_data': im_tensor}, segSize=[h, w]).squeeze(0).cpu().numpy()
     
     if fpm:
-        return np.expand_dims(probs2fg(seg_map.transpose(1, 2, 0)).astype(np.float), -1)
+        return np.expand_dims(probs2fg(seg_map.transpose(1, 2, 0)).astype(float), -1)
     else:
         return seg_map
 

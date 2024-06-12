@@ -89,12 +89,6 @@ class videoLoader(data.IterableDataset):
         assert recent_bg or recent_bg_opp in ["mean"], \
             "{} is not defined for <recent_bg_opp>. Use 'mean'.".format(recent_bg_opp)
 
-        ret, fr = self.vid_cap.read()
-        if self.recent_bg:
-            self.recent_bg_sum = np.zeros_like(fr).astype(np.float)
-
-        # Reinitialize the video reader
-        self.vid_cap = cv2.VideoCapture(vid_path)
         self.transforms_pre = transforms_pre
         self.transforms_post = transforms_post
 
@@ -129,13 +123,17 @@ class videoLoader(data.IterableDataset):
                             self.recent_bg_sum -= old_bg
 
                     if self.recent_bg_opp == "mean":
+                        if not hasattr(self, 'recent_bg_sum'):
+                            self.recent_bg_sum = np.zeros_like(inp["current_fr"]).astype(float)
+
                         self.recent_bg_sum += inp["current_fr"]
                         recent_bg_arr.put(inp["current_fr"])
                         inp["recent_bg"] = self.recent_bg_sum / recent_bg_arr.qsize()
 
 
-                for transform in self.transforms_pre:
-                    inp, _ = transform(inp, fr[:, :, :1])
+                if self.transforms_pre:
+                    for transform in self.transforms_pre:
+                        inp, _ = transform(inp, fr[:, :, :1])
 
                 if self.seg:
                     if inp["empty_bg_seg"] is None:
@@ -144,8 +142,9 @@ class videoLoader(data.IterableDataset):
                     inp["recent_bg_seg"] = seg.getFPM(inp["recent_bg"], self.seg_network)
                     inp["current_fr_seg"] = seg.getFPM(inp["current_fr"], self.seg_network)
 
-                for transform in self.transforms_post:
-                    inp, _ = transform(inp, fr[:, :, :1])
+                if self.transforms_post:
+                    for transform in self.transforms_post:
+                        inp, _ = transform(inp, fr[:, :, :1])
 
                 yield inp
             # Break the loop
@@ -157,15 +156,17 @@ class videoLoader(data.IterableDataset):
 
     def __readRGB(self, path):
         assert os.path.exists(path), "{} does not exist".format(path)
-        im = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB).astype(np.float)/255
+        im = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB).astype(float)/255
         h, w, _ = im.shape
         h_valid = int(h / 16) * 16
         w_valid = int(w / 16) * 16
         return im[:h_valid, :w_valid, :]
 
     def __preProc(self, fr):
+        fixed_resolution = (640, 360)  # Set the desired fixed resolution
+        fr = cv2.resize(fr, fixed_resolution)
+        print(fr.shape)
         h, w, _ = fr.shape
         h_valid = int(h / 16) * 16
         w_valid = int(w / 16) * 16
-        return cv2.cvtColor(fr[:h_valid, :w_valid, :], cv2.COLOR_BGR2RGB).astype(np.float)/255
-
+        return cv2.cvtColor(fr[:h_valid, :w_valid, :], cv2.COLOR_BGR2RGB).astype(float)/255

@@ -1,26 +1,19 @@
 import sys
-import configs.infer_config_manualBG as cfg
+import configs.infer_config_autoBG as cfg
 import cv2
 import torch
 from utils.data_loader import videoLoader
 import time
 import numpy as np
+import os
 
-assert len(sys.argv) > 2, "You must provide the input and output video paths"
+assert len(sys.argv) > 2, "You must provide the input video path and output directory"
 inp_path = sys.argv[1]
-out_path = sys.argv[2]
+out_dir = sys.argv[2]
 
-
-# Start output video
-vid_loader = videoLoader(inp_path, empty_bg="no",
-                         recent_bg=50, seg_network=cfg.BSUVNet.seg_network,
-                         transforms_pre=cfg.BSUVNet.transforms_pre, transforms_post=cfg.BSUVNet.transforms_post)
-fr = next(iter(vid_loader))
-c, h, w = fr.size()
-h = int(16 * int(h / 16))
-w = int(16 * int(w / 16))
-vid_out = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*"MP4V"), 30, (3*w+20, h), isColor=True)
-
+# Create output directory if it does not exist
+if not os.path.exists(out_dir):
+    os.makedirs(out_dir)
 
 # Start Video Loader
 vid_loader = videoLoader(
@@ -32,12 +25,11 @@ vid_loader = videoLoader(
     seg_network=cfg.BSUVNet.seg_network,
     transforms_pre=cfg.BSUVNet.transforms_pre,
     transforms_post=cfg.BSUVNet.transforms_post
-    )
+)
 tensor_loader = torch.utils.data.DataLoader(dataset=vid_loader, batch_size=1)
 
 # Load BSUV-Net
-bsuvnet = torch.load(cfg.BSUVNet.model_path)
-bsuvnet.cuda().eval()
+bsuvnet = torch.load(cfg.BSUVNet.model_path, map_location='cpu').eval()
 
 # Start Inference
 num_frames = 0
@@ -45,25 +37,21 @@ start = time.time()  # Inference start time
 with torch.no_grad():
     for inp in tensor_loader:
         num_frames += 1
-        bgs_pred = bsuvnet(inp.cuda().float()).cpu().numpy()[0, 0, :, :]
+        bgs_pred = bsuvnet(inp.float()).numpy()[0, 0, :, :]
 
-        # Construct the output frame
-        inp_org = inp.numpy()[0, -3:, :, :] * np.asarray(cfg.BSUVNet.std_rgb).reshape(3, 1, 1) + \
-                  np.asarray(cfg.BSUVNet.mean_rgb).reshape(3, 1, 1)
-        inp_org[inp_org < 0] = 0
-        inp_org[inp_org > 1] = 1
-        inp_org = inp_org.transpose(1, 2, 0)[:, :, ::-1]
+        # Normalize the prediction to be in the range [0, 255]
+        bgs_pred = (bgs_pred * 255).astype(np.uint8)
 
-        fr = np.ones((h, 3 * w + 20, 3)) * 0.5
-        fr[:, :w, :] = inp_org
-        for ch in range(3):
-            fr[:, w + 10:2 * w + 10, ch] = bgs_pred
-            fr[:, 2 * w + 20:, ch] = inp_org[:, :, ch] * (bgs_pred + 1) / 2
+        # Save the frame as an image file
+        frame_filename = os.path.join(out_dir, f"frame_{num_frames:06d}.png")
+        cv2.imwrite(frame_filename, bgs_pred)
 
-        vid_out.write((fr * 255).astype(np.uint8))
         if num_frames % 100 == 0:
-            print("%d frames completed" %num_frames)
-vid_out.release()
+            print(f"{num_frames} frames completed")
+
 end = time.time()  # Inference end time
 fps = num_frames / (end - start)
-print("%.3f FPS for (%d, %d) resolution" % (fps, w, h))
+
+# Extract height and width from the last processed frame
+height, width = bgs_pred.shape
+print(f"{fps:.3f} FPS for ({width}, {height}) resolution")
