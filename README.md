@@ -17,7 +17,7 @@ conda install --file requirements.txt
 
 
 ## Usage
-Download the pretrained weights from [BSUVnet GitHub repository](https://github.com/ozantezcan/BSUV-Net-2.0) and specify the appropriate folder in `trained_models/BSUV-Net-2.0`.
+Download the pretrained weights from [BSUVnet GitHub repository](https://github.com/ozantezcan/BSUV-Net-2.0) and specify the appropriate folder in `trained_models/BSUV-Net-2.0.mdl`.
 
 To run the script:
 
