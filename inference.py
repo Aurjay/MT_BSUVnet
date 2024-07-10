@@ -7,8 +7,8 @@ import time
 import numpy as np
 import os
 
-inp_path = r'I:\Werkstudenten\Deepak_Raj\DATASETS\Public\mp4\rain-break.mp4'
-out_dir = r'I:\Werkstudenten\Deepak_Raj\DATASETS\Results_all_models_final\public\BSUVnet\rain-break'
+inp_path = r'Path to input file \ *.mp4'
+out_dir = r'Path to output directory'
 
 # Create output directory if it does not exist
 if not os.path.exists(out_dir):
